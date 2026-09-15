@@ -1,0 +1,175 @@
+Metadata-Version: 2.4
+Name: mdjsondictio
+Version: 0.2.4
+Summary: Tools to Extract, Build, Modify, and Validate mdEditor Dictionary records.
+Author-email: Tamatha Patterson & Hannah Vincelette <tamatha_patterson@fws.gov>
+License: CC0
+Project-URL: Homepage, https://github.com/hdvincelette/mdJSONdictio
+Project-URL: Issues, https://github.com/hdvincelette/mdJSONdictio/issues
+Keywords: mdEditor,mdJSON,json,dictionary,metadata
+Classifier: License :: CC0 1.0 Universal (CC0 1.0) Public Domain Dedication
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Scientific/Engineering
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE.txt
+Requires-Dist: pandas>=1.5
+Requires-Dist: numpy>=1.23
+Requires-Dist: openpyxl>=3.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Dynamic: license-file
+
+# mdjsondictio (Python)
+
+Tools to Extract, Build, Modify, and Validate mdEditor Dictionary records.
+
+This is a Python port of the R package [`mdJSONdictio`](https://github.com/hdvincelette/mdJSONdictio) by Hannah Vincelette. It preserves the original package's functionality for working with [mdEditor](https://www.mdeditor.org/) data dictionaries, translated to idiomatic Python using `pandas` for tabular data and the standard library `json` module for mdJSON handling.
+
+## Installation
+
+Clone or download this repository, then install locally:
+
+```bash
+pip install .
+```
+
+For development (editable install, plus test dependencies):
+
+```bash
+pip install -e ".[dev]"
+```
+
+Or, without packaging, just place `mdjsondictio.py` alongside your script and install the dependencies directly:
+
+```bash
+pip install -r requirements.txt
+```
+
+### Requirements
+
+- Python >= 3.9
+- pandas >= 1.5
+- numpy >= 1.23
+- openpyxl >= 3.0 (only needed if reading `.xlsx` dictionary templates via `pandas.read_excel`)
+- pytest >= 7.0 (optional, for running the test suite)
+
+## Usage
+
+`build_mdjson()` builds an mdJSON data dictionary that can be imported to mdEditor to create a Dictionary record. The input table must be formatted to the [tabular data dictionary template](https://github.com/hdvincelette/mdJSONdictio/blob/master/inst/templates/mdJSONdictio_Dictionary_Template_v2.xlsx?raw=true). `build_table()` builds a tabular data dictionary from an mdEditor mdJSON data dictionary. `validate_mdjson()` / `validate_table()` validate mdJSON and tabular data dictionaries against a dataset. `extract_mdjson()` extracts one or more mdJSON data dictionaries from an mdJSON file comprised of other types of records.
+
+```python
+import json
+import pandas as pd
+from mdjsondictio import build_mdjson, build_table, validate_table, validate_mdjson, extract_mdjson
+
+# --- build_mdjson: tabular dictionary -> mdJSON ---
+input_table = pd.read_excel("e.g.dictionary.xlsx")
+new_dict = build_mdjson(input_table, title="Example Dictionary")
+with open("e.g.dictionary.json", "w") as f:
+    json.dump(new_dict, f, indent=2)
+
+# --- build_table: mdJSON -> tabular dictionary ---
+with open("e.g.dictionary2.json") as f:
+    input_list = json.load(f)
+new_table = build_table(input_list, entity_num=1)
+new_table.to_csv("e.g.dictionary2.csv", index=False)
+
+# --- validate_table: compare a tabular dictionary against a dataset ---
+input_dxnry = pd.read_excel("e.g.dictionary.xlsx")
+input_data = pd.read_csv("e.g.dataset.csv")
+all_warnings = validate_table(input_dxnry, input_data)
+all_warnings.to_csv("e.g.warnings2.csv", index=False)
+
+# --- validate_mdjson: compare an mdJSON dictionary against a dataset ---
+all_warnings = validate_mdjson(input_list, input_data, entity_num=1)
+
+# --- extract_mdjson: pull dictionary records out of a larger mdJSON file ---
+with open("e.g.dictionary2.json") as f:
+    input_metadata = json.load(f)
+dxnry_record = extract_mdjson(input_metadata, record_type="dictionaries")
+```
+
+## API Reference
+
+### `build_mdjson(x, title=None) -> dict`
+Translates a tabular data dictionary (`pandas.DataFrame`) into a dict that can be serialized to mdJSON and imported to mdEditor as a Dictionary record.
+
+- `x`: DataFrame of the tabular data dictionary, with required columns `codeName`, `domainItem_name`, `domainItem_value`, `definition`, `dataType`, `allowNull` (see [template](https://github.com/hdvincelette/mdJSONdictio/blob/master/inst/templates/mdJSONdictio_Dictionary_Template_v2.xlsx?raw=true)).
+- `title`: Title of the Dictionary record in mdEditor. Defaults to `"Untitled Dictionary"` if not provided.
+- Returns the full mdJSON envelope as a `dict`. Serialize with `json.dumps()` before writing to disk.
+
+### `build_table(x, entity_num=1) -> pandas.DataFrame`
+Translates a parsed mdJSON data dictionary (`dict`, e.g. from `json.load()`) into a `pandas.DataFrame`.
+
+- `x`: Parsed mdJSON object.
+- `entity_num`: 1-based index of the entity to use, if the file contains more than one.
+
+### `validate_table(dict_df, data_df) -> pandas.DataFrame`
+Compares a tabular data dictionary to a tabular dataset and summarizes discrepancies.
+
+- `dict_df`: DataFrame of the tabular data dictionary.
+- `data_df`: DataFrame of the dataset to validate.
+- Returns a DataFrame with columns `Num`, `Variable`, `Category`, `Message`.
+
+### `validate_mdjson(x, y, entity_num=1) -> pandas.DataFrame`
+Compares an mdJSON data dictionary to a tabular dataset. Thin wrapper equivalent to `validate_table(build_table(x, entity_num), y)`.
+
+### `extract_mdjson(x, record_type="dictionaries", multiple=True, all=False, selection=None) -> dict`
+Plucks one or more mdJSON records from an mdJSON file comprised of other types of records (e.g. dictionaries, records, contacts).
+
+- `record_type`: `str` or `list[str]` of record type(s) to extract.
+- `multiple`: whether multiple records may be selected.
+- `all`: if `True`, automatically selects all matching records.
+- `selection`: programmatic selection by record name or 0-based index — use this in scripts/tests to avoid the interactive console prompt that appears when there are multiple candidate records and no other selection method is given.
+
+## Differences from the original R package
+
+This port aims to be functionally faithful to the original R package, with a few deliberate exceptions:
+
+1. **Fixed an indexing bug** present in the original `build.table.R`, which read entities/domains from `newlist[["entity"]]` / `newlist[["domain"]]` (top level) instead of the correct `newlist[["dataDictionary"]][["entity"]]` / `[["domain"]]`. The Python port uses the corrected path.
+2. **Fixed a duplicate-domain-item artifact** present in `build.mdJSON.R`'s output (confirmed against real-world example files, where every generated domain's item list has its first item duplicated at the end). The Python port produces clean domain item lists without this duplication. **Note:** this means `build_mdjson()` output will not byte-match mdJSON files produced by the original R package for dictionaries with domains.
+3. **Interactive GUI menus** (R's `utils::select.list(..., graphics = TRUE)`) are replaced with either an explicit `selection` argument or a plain-text console prompt, since there's no GUI picker equivalent outside RStudio.
+4. **JSON boolean serialization** is handled natively — the Python port stores real `bool`/`int`/`float` values and lets `json.dumps()` serialize them correctly, rather than the original's approach of stringifying everything and then regex-patching `"true"`/`"false"` strings back into unquoted JSON literals.
+5. **`is.decimal`**, referenced in the ported `datatype.rules` table for `numeric`/`decimal` types, is not a base R function and doesn't appear to be defined anywhere in the original package source — it likely would have errored if actually triggered in R. It's mapped to a generic numeric-type check in Python as a reasonable stand-in.
+6. **Integer/NaN handling**: R integer vectors can hold `NA` while still reporting as integer type. pandas silently upcasts integer-valued columns to `float64` the moment they contain any missing values. The Python port's datatype validation accounts for this — a float64 column is still treated as "integer-like" if every non-null value has no fractional part — to avoid false-positive `dataType_RdataType` warnings on any dictionary column marked `integer` that has blank entries in the dataset (a common, otherwise-noisy case).
+7. **Multibyte string validation** is a best-effort analog of R's `validEnc()`, not a byte-identical port.
+
+## Testing
+
+A `pytest` suite (`test_mdjsondictio.py`) is included, using three real example files as fixtures:
+
+- `e.g.dictionary.csv` — a tabular data dictionary (460 rows × 14 columns)
+- `e.g.dictionary2.json` — a real mdJSON dictionary (100 attributes, 38 domains)
+- `e.g.dataset.csv` — a real dataset (2,901 rows × 92 columns)
+
+Place these three files either in a `fixtures/` subdirectory or directly alongside the test file, then run:
+
+```bash
+pytest test_mdjsondictio.py -v
+```
+
+If the fixture files aren't present, file-dependent tests are skipped (not failed) rather than erroring out, so the suite still runs — the synthetic/unit-level tests (input validation, regression checks, datatype rules integrity) execute regardless.
+
+The suite covers:
+- `build_table()` against a real mdJSON file
+- Full round-trip (`build_mdjson()` → `build_table()`) cell-level equality against real data
+- `validate_table()` against a real dataset, confirming all warning categories fire correctly and known-good/known-bad columns land in the right buckets
+- `validate_mdjson()` wrapper consistency
+- `extract_mdjson()` single-record, empty-result, explicit-selection, and `all=True` paths
+- `build_mdjson()` input validation error paths
+- Regression tests locking in specific bug fixes found during real-data testing
+
+## License
+
+CC0 (same as the original R package).
+
+## Original R Package
+
+- Repository: https://github.com/hdvincelette/mdJSONdictio
+- Documentation: https://hdvincelette.github.io/mdJSONdictio/

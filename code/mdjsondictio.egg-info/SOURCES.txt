@@ -1,0 +1,10 @@
+LICENSE.txt
+README.md
+pyproject.toml
+setup.py
+code/mdjsondictio.py
+code/mdjsondictio.egg-info/PKG-INFO
+code/mdjsondictio.egg-info/SOURCES.txt
+code/mdjsondictio.egg-info/dependency_links.txt
+code/mdjsondictio.egg-info/requires.txt
+code/mdjsondictio.egg-info/top_level.txt
